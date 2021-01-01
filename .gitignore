@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+
+# .env文件不做提交
+__tests__/.env
+
+package-lock.json
+yarn-lock
