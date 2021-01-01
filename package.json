@@ -16,7 +16,7 @@
     "name": "zhouLion"
   },
   "license": "ISC",
-  "repository": "",
+  "repository": "https://github.com/zhouLion/yapi-service",
   "dependencies": {
     "axios": "^0.21.0",
     "json-schema": "^0.2.5",
