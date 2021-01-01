@@ -17,4 +17,4 @@
 - 3、运行`npm run dev`启动tsc的监听器进行开发
 
 ## 测试用例
-项目使用jest进行单元测试，测试用例所在目录：`/__tests__/` ，另见说明[./__tests__/README.md](README.md)
+项目使用jest进行单元测试，测试用例所在目录：`/__tests__/` ，另见说明[README.md](./__tests__/README.md)
