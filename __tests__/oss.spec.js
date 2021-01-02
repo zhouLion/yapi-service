@@ -10,11 +10,7 @@ const {
     UID
 } = JSON.parse(TEST_CONFIG);
 
-console.table({
-    YAPI_SERVER,
-    TOKEN,
-    UID
-})
+console.log({ YAPI_SERVER, TOKEN, UID })
 
 jest.setTimeout(10000);
 
@@ -54,4 +50,26 @@ describe("测试yapi-oss", () => {
         const userStatusAfterDisconnect = await yapiOss.getUserStatus();
         expect(userStatusAfterDisconnect).toBeNull();
     });
+
+    test("【请求】各个请求数据的接口", async () => {
+        const yapiOss = createYapiOss();
+        yapiOss.connectWithCookies(TOKEN, UID);
+        // > 
+        const groupList = await yapiOss.getGroupList();
+        expect(groupList).not.toBeNull();
+        expect(groupList.data.length).not.toBe(0);
+        
+        // >
+        const groupId = groupList[0]._id;
+        console.log(groupId);
+        expect(groupId).not.toBeNaN();
+        expect(groupId).not.toBeNull();
+        expect(groupId).not.toBeUndefined();
+
+        // >
+        const projectList = await yapiOss.getProjectList({ group_id: groupId, page: 1, limit: 9999 })
+        console.log(projectList);
+        expect(projectList).not.toBeNull();
+        expect(projectList.list.length).not.toBe(0);
+    })
 });

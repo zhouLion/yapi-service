@@ -1,14 +1,8 @@
 import Axios, { AxiosInstance } from "axios";
 import { URL } from "url";
-
+import { YapiReqPage, YapiResponse, YapiResPage } from '../typings/base';
 import {
-    CategoryList,
-    YapiGroup,
-    YapiGroupProject,
-    YapiPage,
-    YapiUserStatus,
-    YapiResPage,
-    Interface
+    UserStatus, Group, Project, ProjectCollected, InterfaceMenu, Interface, ShortlyInterface
 } from "../typings/yapi";
 
 const YAPI_URL = {
@@ -21,7 +15,9 @@ const YAPI_URL = {
     /** 分组列表 */
     GROUP_LIST: "api/group/list",
     /** 项目 */
-    PROJECT: "api/project",
+    PROJECTS: "api/project/list",
+    /** 项目 */
+    PROJECT: "api/project/get",
     /** 项目下的接口菜单树 */
     INTERFACE_LIST_MENU: "api/interface/list_menu",
     /** 项目下接口列表 */
@@ -32,17 +28,19 @@ const YAPI_URL = {
     INTERFACE_GET: "api/interface/get",
 }
 
+const throwError = (error: Error) => console.error(error.message);
+
 export class Oss {
     /**
      * YOss
      * @param serverUrl yapi服务部署的hostname，如 https://yapi.baidu.com。
      * @param cookie
-     * @example 
+     * @example
      * // 如果已经在客户端登录，可以直接将cookie作为参数传进来
      * const yapiOss = new YOss("https://yapi.baidu.com", "_yapi_token={token}; _yapi_uid={uid}")
      * @example // cookie非必传参数， 可以通过登录生成
      * const yapiOss = new YOss("https://yapi.baidu.com");
-     * yapiOss.doLoginByAccount({ username, password });
+     * yapiOss.connectWithCookies({ username, password });
      */
     constructor(serverUrl: string, cookie?: string) {
         if (!serverUrl) {
@@ -63,8 +61,8 @@ export class Oss {
         });
     }
 
-    private _cookie: string = ''
-    private _serverUrl: string = ''
+    private _cookie: string;
+    private _serverUrl: string;
     private _axios: AxiosInstance;
 
     private get _headers() {
@@ -86,23 +84,24 @@ export class Oss {
             .map((cookieStr: string) => extractCookie(cookieStr))
             .join(";");
     }
-    
+
     /**
      * 使用cookie连接
      * @param cookie
      * @description 直接传cookies，这个cookies就是每个yapi请求的Request Headers中的Cookie对应的值
      */
-    connectWithCookies(cookie: string): Promise<YapiUserStatus | null>
+    connectWithCookies(cookie: string): Promise<YapiResponse<UserStatus> | null>
     /**
      * 从token和uic两部分拼接cookies，可以从devtool>application>coockies中分别复制
      * @param token headers中的token
      * @param uid headers中的uid
      */
-    connectWithCookies(token: string, uid: string): Promise<YapiUserStatus | null>
+    // tslint:disable-next-line: unified-signatures
+    connectWithCookies(token: string, uid: string): Promise<YapiResponse<UserStatus> | null>
     connectWithCookies(...args: string[]) {
         if (args.length === 1) {
             this._cookie = args[0]
-        } else if(args.length === 2) {
+        } else if (args.length === 2) {
             const [token, uid] = args;
             this._cookie = `_yapi_token=${token}; _yapi_uid=${uid}`;
         }
@@ -124,15 +123,15 @@ export class Oss {
      * @param token
      * @deprecated
      */
-    async doLoginByToken(token: string): Promise<boolean> {
+    async doLoginByToken(token: string) {
         try {
             const response = await this._axios.get(YAPI_URL.USER_LOGIN_BY_TOKEN, {
-                data: { token },
+                params: { token },
             });
             this.assembleCookie(response.headers);
             return true;
         } catch (error) {
-            // throwError(error.toString());
+            throwError(error);
             return false;
         }
     }
@@ -144,15 +143,16 @@ export class Oss {
     async doLoginByAccount(payload: {
         username: string,
         password: string,
-    }): Promise<boolean> {
+    }) {
         try {
-            const response = await this._axios.get(YAPI_URL.USER_LOGIN, {
-                data: payload,
-            });
+            const response = await this._axios
+                .get(YAPI_URL.USER_LOGIN, {
+                    params: payload,
+                });
             this.assembleCookie(response.headers);
             return true;
         } catch (error) {
-            // throwError(error.toString());
+            throwError(error);
             return false;
         }
     }
@@ -160,10 +160,13 @@ export class Oss {
     /**
      * 获取用户信息、状态。主要用于验证身份或者会话有效
      */
-    async getUserStatus(): Promise<YapiUserStatus | null> {
+    async getUserStatus() {
         try {
-            const response = await this._axios.get(YAPI_URL.USER_STATUS);
-            return response.data.data;
+            const response = await this._axios
+                .get<
+                    YapiResponse<UserStatus>
+                >(YAPI_URL.USER_STATUS);
+            return response.data;
         } catch (error) {
             console.log(error.message);
             return null;
@@ -173,13 +176,15 @@ export class Oss {
     /**
      * 获取分组信息列表
      */
-    async getGroupList(): Promise<YapiGroup[] | null> {
+    async getGroupList() {
         try {
-            const response = await this._axios.get(YAPI_URL.GROUP_LIST);
-            return response.data.data;
+            const response = await this._axios
+                .get<
+                    YapiResponse<Group[]>
+                >(YAPI_URL.GROUP_LIST);
+            return response.data;
         } catch (error) {
-            console.log(error)
-            // throwError(error.toString());
+            throwError(error);
             return null;
         }
     }
@@ -189,15 +194,20 @@ export class Oss {
      * @param payload
      */
     async getProjectList(
-        payload: YapiPage<{ group_id: number }>
-    ): Promise<YapiResPage<YapiGroupProject> | null> {
+        payload: YapiReqPage<{ group_id: number }>
+    ) {
         try {
-            const response = await this._axios.get(YAPI_URL.PROJECT, {
-                data: payload,
-            });
+            const response = await this._axios
+                .get<
+                    YapiResponse<{
+                        list: (Project | ProjectCollected)[]
+                    }>
+                >(YAPI_URL.PROJECTS, {
+                    params: payload
+                });
             return response.data.data;
         } catch (error) {
-            // throwError(error.toString());
+            throwError(error);
             return null;
         }
     }
@@ -206,16 +216,19 @@ export class Oss {
      * 查询项目下的接口分组， 对应yapi文档中左侧菜单
      * @param project_id
      */
-    async getInterfaceMenu(project_id: string): Promise<CategoryList | null> {
+    async getInterfaceMenu(project_id: string) {
         try {
-            const response = await this._axios.get(YAPI_URL.INTERFACE_LIST_MENU, {
-                data: {
-                    project_id,
-                }
-            });
+            const response = await this._axios
+                .get<
+                    YapiResponse<InterfaceMenu[]>
+                >(YAPI_URL.INTERFACE_LIST_MENU, {
+                    params: {
+                        project_id,
+                    }
+                });
             return response.data.data;
         } catch (error) {
-            // throwError(error.toString());
+            throwError(error);
             return null;
         }
     }
@@ -224,14 +237,17 @@ export class Oss {
      * 查询项目下的接口，返回分页数据。如果不想分页，可以将limit传非常大的数值 eg 9999
      * @param payload
      */
-    async getInterfaceListByProjectId(payload: YapiPage<{ project_id: number }>): Promise<YapiResPage<Interface> | null> {
+    async getInterfaceListByProjectId(payload: YapiReqPage<{ project_id: number }>) {
         try {
-            const response = await this._axios.get(YAPI_URL.INTERFACE_LIST, {
-                data: payload,
-            })
+            const response = await this._axios
+                .get<
+                    YapiResponse<YapiResPage<ShortlyInterface>>
+                >(YAPI_URL.INTERFACE_LIST, {
+                    params: payload,
+                })
             return response.data.data;
         } catch (error) {
-            // throwError(error.toString());
+            throwError(error);
             return null;
         }
     }
@@ -240,14 +256,17 @@ export class Oss {
      * 查询一个分类下的接口，返回分页数据。如果不想分页，可以将limit传非常大的数值 eg 9999
      * @param payload
      */
-    async getInterfaceListByCategoryId(payload: YapiPage<{ catid: string }>): Promise<YapiResPage<Interface> | null> {
+    async getInterfaceListByCategoryId(payload: YapiReqPage<{ catid: string }>) {
         try {
-            const response = await this._axios.get(YAPI_URL.INTERFACE_LIST_CAT, {
-                data: payload,
-            });
+            const response = await this._axios
+                .get<
+                    YapiResponse<YapiResPage<ShortlyInterface>>
+                >(YAPI_URL.INTERFACE_LIST_CAT, {
+                    params: payload,
+                });
             return response.data.data;
         } catch (error) {
-            // throwError(error.toString());
+            throwError(error);
             return null;
         }
     }
@@ -256,14 +275,17 @@ export class Oss {
      * 查询接口详情
      * @param id
      */
-    async getInterfaceById(id: string): Promise<Interface | null> {
+    async getInterfaceById(id: string) {
         try {
-            const response = await this._axios.get(YAPI_URL.INTERFACE_GET, {
-                data: { id },
-            });
+            const response = await this._axios
+                .get<
+                    YapiResponse<Interface>
+                >(YAPI_URL.INTERFACE_GET, {
+                    params: { id },
+                });
             return response.data.data;
         } catch (error) {
-            // throwError(error.toString());
+            throwError(error);
             return null;
         }
     }
